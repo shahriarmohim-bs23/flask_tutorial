@@ -5,10 +5,11 @@ class User_registration:
           self.email = email
           self.birthday = birthday
           self.haspassword = hashpassword
+      
       def update(self,name,email,birthday):
-          self.name = name
-          self.email = email
-          self.birthday = birthday
+          self.name=name
+          self.email=email
+          self.birthday=birthday
           
 
       def __str__(self):
