@@ -1,6 +1,8 @@
 from flask import Flask,request,make_response,jsonify
 from flask_mysqldb import MySQL
 from flask_bcrypt import Bcrypt
+from Jwt import encode,decode
+from token_decorator import token_required
 import uuid
 import datetime
 
@@ -13,6 +15,9 @@ app.config['MYSQL_DB']="user_db"
 app.config['MYSQL_CURSORCLASS']="DictCursor"
 
 mysql = MySQL(app)
+
+
+
 @app.route('/register',methods=['POST'])
 def register():
     user_data = request.get_json()
@@ -35,7 +40,28 @@ def register():
     cur.close()
     return "Registration Successful",201
 
+@app.route('/login',methods=['POST'])
+def login():
+    request_body = request.get_json()
+    user_email = request_body['email']
+    user_password = request_body['password']
+    cur = mysql.connection.cursor()
+    count = cur.execute("select id,email,pass from user_table where email=%s",[user_email])
+    if count == 0:
+       return "User Not Registered",404
+    user = list(cur.fetchall())
+    match = bcrypt.check_password_hash(user[0]['pass'],user_password)
+    if not match:
+       return "Password Not Matched",401
+    user_data = {'id':user[0]['id'],'email':user[0]['email']}
+    token = encode(user_data)
+    response = {"token":token}
+    return make_response(jsonify(response))
+
+
+
 @app.route('/current_users',methods=['GET'])
+@token_required
 def get_user():
     cur = mysql.connection.cursor()
     count = cur.execute("select id,name,email,birth from user_table")
@@ -46,9 +72,11 @@ def get_user():
     return make_response(jsonify({"Users":Userinfo}))
 
 @app.route('/update_user',methods=['PUT'])
+@token_required
 def update_user():
     user_data=request.get_json()
-    user_id = user_data['id']
+    token = request.headers.get('token')
+    user_id = decode(token)['id']
     user_name = user_data['name']
     user_email = user_data['email']
     user_birthday = user_data['birth']
@@ -62,8 +90,11 @@ def update_user():
         return "User updated successfully",204
     return "User Not Found",404
 
-@app.route('/delete_user/<id>',methods=['DELETE'])
-def delete_user(id):
+@app.route('/delete_user',methods=['DELETE'])
+@token_required
+def delete_user():
+    token = request.headers.get('token')
+    id = decode(token)['id']
     cur = mysql.connection.cursor()
     count = cur.execute("select id from user_table where id=%s",[id])
     if count==1:
